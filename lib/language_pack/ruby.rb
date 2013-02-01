@@ -406,12 +406,12 @@ ERROR
       if $?.success?
         log "bundle", :status => "success"
         puts "Cleaning up the bundler cache."
-        pipe "bundle clean"
+        pipe "env BUNDLE_CONFIG=/dev/null bundle clean --no-dry-run"
         cache_store ".bundle"
         cache_store "vendor/bundle"
 
         # Keep gem cache out of the slug
-        FileUtils.rm_rf("#{slug_vendor_base}/cache")
+        FileUtils.rm_rf("vendor/cache")
 
         # symlink binstubs
         bin_dir = "bin"
