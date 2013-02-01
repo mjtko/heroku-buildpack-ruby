@@ -411,6 +411,8 @@ ERROR
         cache_store "vendor/bundle"
 
         # Keep gem cache out of the slug
+        FileUtils.rm_rf("#{slug_vendor_base}/cache")
+        # Keep vendor cache out of the slug
         FileUtils.rm_rf("vendor/cache")
 
         # symlink binstubs
