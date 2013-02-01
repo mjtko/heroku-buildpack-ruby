@@ -21,7 +21,7 @@ class LanguagePack::Ruby < LanguagePack::Base
   NODE_JS_BINARY_PATH = "node-#{NODE_VERSION}"
   JVM_BASE_URL        = "http://heroku-jvm-langpack-java.s3.amazonaws.com"
   JVM_VERSION         = "openjdk7-latest"
-  ASSET_TASK          = "assets:precompile"
+  ASSET_PRECOMPILE_TASK = "assets:precompile"
 
   # detects if this is a valid Ruby app
   # @return [Boolean] true if it's a Ruby app
@@ -588,11 +588,11 @@ params = CGI.parse(uri.query || "")
   end
 
   def run_assets_precompile_rake_task
-    if rake_task_defined?(asset_task)
+    if rake_task_defined?(ASSET_PRECOMPILE_TASK)
       require 'benchmark'
 
-      topic "Running: rake #{asset_task}"
-      time = Benchmark.realtime { pipe("env PATH=$PATH:bin bundle exec rake #{asset_task} 2>&1") }
+      topic "Running: rake #{ASSET_PRECOMPILE_TASK}"
+      time = Benchmark.realtime { pipe("env PATH=$PATH:bin bundle exec rake #{ASSET_PRECOMPILE_TASK} 2>&1") }
       if $?.success?
         puts "Asset precompilation completed (#{"%.2f" % time}s)"
       end

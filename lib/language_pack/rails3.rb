@@ -29,16 +29,18 @@ class LanguagePack::Rails3 < LanguagePack::Rails2
 
 private
 
-  def plugins
-    super.concat(%w( rails3_serve_static_assets )).uniq
-  end
+  # mjt - Disabled this plugin; not needed as we have a correctly
+  # configured environments/production.rb that already does this.
+  # def plugins
+  #   super.concat(%w( rails3_serve_static_assets )).uniq
+  # end
 
   # runs the tasks for the Rails 3.1 asset pipeline
   def run_assets_precompile_rake_task
     log("assets_precompile") do
       setup_database_url_env
 
-      if rake_task_defined?("assets:precompile")
+      if rake_task_defined?(ASSET_PRECOMPILE_TASK)
         topic("Preparing app for Rails asset pipeline")
         if File.exists?("public/assets/manifest.yml")
           puts "Detected manifest.yml, assuming assets were compiled locally"
@@ -46,9 +48,9 @@ private
           ENV["RAILS_GROUPS"] ||= "assets"
           ENV["RAILS_ENV"]    ||= "production"
 
-          puts "Running: rake assets:precompile"
+          puts "Running: rake #{ASSET_PRECOMPILE_TASK}"
           require 'benchmark'
-          time = Benchmark.realtime { pipe("env PATH=$PATH:bin bundle exec rake assets:precompile 2>&1") }
+          time = Benchmark.realtime { pipe("env PATH=$PATH:bin bundle exec rake #{ASSET_PRECOMPILE_TASK} 2>&1") }
 
           if $?.success?
             log "assets_precompile", :status => "success"
