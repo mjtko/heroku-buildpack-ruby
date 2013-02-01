@@ -1,10 +1,6 @@
 # TODO: 
 # - Cache asset compilation intelligently
 # - Fix client-side-validations gem
-# - prevent job syncer from running when assets are compiled (or, indeed
-# any time we're not actually running the app!)
-
-
 require "tmpdir"
 require "rubygems"
 require "language_pack"
@@ -21,7 +17,7 @@ class LanguagePack::Ruby < LanguagePack::Base
   NODE_JS_BINARY_PATH = "node-#{NODE_VERSION}"
   JVM_BASE_URL        = "http://heroku-jvm-langpack-java.s3.amazonaws.com"
   JVM_VERSION         = "openjdk7-latest"
-  ASSET_PRECOMPILE_TASK = "assets:precompile"
+  ASSET_PRECOMPILE_TASK = "alces:predeploy" # "assets:precompile"
 
   # detects if this is a valid Ruby app
   # @return [Boolean] true if it's a Ruby app
