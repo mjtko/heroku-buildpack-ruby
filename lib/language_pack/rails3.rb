@@ -40,29 +40,41 @@ private
     log("assets_precompile") do
       setup_database_url_env
 
-      if rake_task_defined?(ASSET_PRECOMPILE_TASK)
-        topic("Preparing app for Rails asset pipeline")
-        if File.exists?("public/assets/manifest.yml")
-          puts "Detected manifest.yml, assuming assets were compiled locally"
-        else
-          ENV["RAILS_GROUPS"] ||= "assets"
-          ENV["RAILS_ENV"]    ||= "production"
-
-          puts "Running: rake #{ASSET_PRECOMPILE_TASK}"
-          require 'benchmark'
-          time = Benchmark.realtime { pipe("env PATH=$PATH:bin bundle exec rake #{ASSET_PRECOMPILE_TASK} 2>&1") }
-
-          if $?.success?
-            log "assets_precompile", :status => "success"
-            puts "Asset precompilation completed (#{"%.2f" % time}s)"
+      cache_load "vendor/alces/assets"
+      if assets_need_recompile?
+        if rake_task_defined?(ASSET_PRECOMPILE_TASK)
+          topic("Preparing app for Rails asset pipeline")
+          if File.exists?("public/assets/manifest.yml")
+            puts "Detected manifest.yml, assuming assets were compiled locally"
           else
-            log "assets_precompile", :status => "failure"
-            puts "Precompiling assets failed, enabling runtime asset compilation"
-            install_plugin("rails31_enable_runtime_asset_compilation")
-            puts "Please see this article for troubleshooting help:"
-            puts "http://devcenter.heroku.com/articles/rails31_heroku_cedar#troubleshooting"
+            ENV["RAILS_GROUPS"] ||= "assets"
+            ENV["RAILS_ENV"]    ||= "production"
+            
+            puts "Running: rake #{ASSET_PRECOMPILE_TASK}"
+            require 'benchmark'
+            time = Benchmark.realtime { pipe("env PATH=$PATH:bin bundle exec rake #{ASSET_PRECOMPILE_TASK} 2>&1") }
+            
+            if $?.success?
+              log "assets_precompile", :status => "success"
+              puts "Asset precompilation completed (#{"%.2f" % time}s)"
+            else
+              log "assets_precompile", :status => "failure"
+              puts "Precompiling assets failed, enabling runtime asset compilation"
+              install_plugin("rails31_enable_runtime_asset_compilation")
+              puts "Please see this article for troubleshooting help:"
+              puts "http://devcenter.heroku.com/articles/rails31_heroku_cedar#troubleshooting"
+            end
           end
         end
+        cache_store "public/dist"
+        now_version = File.read('config/assets/version').chomp rescue '1'
+        FileUtils.mkdir_p('vendor/alces/assets')
+        File.open('vendor/alces/assets/version', 'w') do |file|
+          file.puts now_version
+        end
+        cache_store "vendor/alces/assets"
+      else
+        cache_load "public/dist"
       end
     end
   end
@@ -82,6 +94,17 @@ private
           "sqlite3"
         end
       "#{scheme}://user:pass@127.0.0.1/dbname"
+    end
+  end
+
+  def assets_need_recompile?
+    if !cache_exists?("public/dist") || !cache_exists?("vendor/alces/assets")
+      return true
+    else
+      # check that no assets have changed since they were last compiled
+      now_version = File.read('config/assets/version').chomp rescue '1'
+      last_version = File.read('vendor/alces/assets/version').chomp rescue '0'
+      now_version != last_version
     end
   end
 end

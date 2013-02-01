@@ -63,7 +63,7 @@ class LanguagePack::Ruby < LanguagePack::Base
       create_database_yml
       install_binaries
       run_assets_precompile_rake_task
-      purge_assets_sources
+      purge_asset_artifacts
       clean_asset_gems
     end
   end
@@ -653,10 +653,12 @@ params = CGI.parse(uri.query || "")
     install_language_pack_gems
   end
 
-  def purge_assets_sources
-    topic("Purging asset sources")
+  def purge_asset_artifacts
+    topic("Purging asset artifacts")
     FileUtils.rm_rf('vendor/assets')
     FileUtils.rm_rf('app/assets')
+    FileUtils.rm_rf Dir.glob('tmp/*')
+    FileUtils.rm_r Dir.glob('log/*.log')
   end
 
   def clean_asset_gems
@@ -664,25 +666,9 @@ params = CGI.parse(uri.query || "")
       bundle_without = ENV["BUNDLE_WITHOUT"] || "development:test:assets"
       bundle_command = "bundle install --local --without #{bundle_without}"
 
-      version = run("env RUBYOPT=\"#{syck_hack}\" bundle version").strip
       topic("Cleaning asset gems")
 
       bundler_output = ""
-      # Dir.mktmpdir("libyaml-") do |tmpdir|
-      #   libyaml_dir = "#{tmpdir}/#{LIBYAML_PATH}"
-      #   install_libyaml(libyaml_dir)
-
-      #   # need to setup compile environment for the psych gem
-      #   yaml_include   = File.expand_path("#{libyaml_dir}/include")
-      #   yaml_lib       = File.expand_path("#{libyaml_dir}/lib")
-      #   pwd            = run("pwd").chomp
-      #   # we need to set BUNDLE_CONFIG and BUNDLE_GEMFILE for
-      #   # codon since it uses bundler.
-      #   env_vars       = "env BUNDLE_GEMFILE=#{pwd}/Gemfile BUNDLE_CONFIG=#{pwd}/.bundle/config CPATH=#{yaml_include}:$CPATH CPPATH=#{yaml_include}:$CPPATH LIBRARY_PATH=#{yaml_lib}:$LIBRARY_PATH RUBYOPT=\"#{syck_hack}\""
-      #   puts "Running: #{bundle_command}"
-      #   bundler_output << pipe("#{env_vars} #{bundle_command} --no-clean 2>&1")
-
-      # end
 
       pwd            = run("pwd").chomp
       env_vars       = "env BUNDLE_GEMFILE=#{pwd}/Gemfile BUNDLE_CONFIG=#{pwd}/.bundle/config RUBYOPT=\"#{syck_hack}\""
@@ -693,10 +679,6 @@ params = CGI.parse(uri.query || "")
         log "bundle", :status => "success"
         puts "Cleaning up the bundler cache."
         pipe "env BUNDLE_CONFIG=/dev/null bundle clean --no-dry-run"
-
-        # Keep gem cache out of the slug
-        #FileUtils.rm_rf("#{slug_vendor_base}/cache")
-
       end
     end
   end
