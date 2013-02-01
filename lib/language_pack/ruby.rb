@@ -1,3 +1,10 @@
+# TODO: 
+# - Cache asset compilation intelligently
+# - Fix client-side-validations gem
+# - prevent job syncer from running when assets are compiled (or, indeed
+# any time we're not actually running the app!)
+
+
 require "tmpdir"
 require "rubygems"
 require "language_pack"
@@ -14,6 +21,7 @@ class LanguagePack::Ruby < LanguagePack::Base
   NODE_JS_BINARY_PATH = "node-#{NODE_VERSION}"
   JVM_BASE_URL        = "http://heroku-jvm-langpack-java.s3.amazonaws.com"
   JVM_VERSION         = "openjdk7-latest"
+  ASSET_TASK          = "assets:precompile"
 
   # detects if this is a valid Ruby app
   # @return [Boolean] true if it's a Ruby app
@@ -59,6 +67,8 @@ class LanguagePack::Ruby < LanguagePack::Base
       create_database_yml
       install_binaries
       run_assets_precompile_rake_task
+      purge_assets_sources
+      clean_asset_gems
     end
   end
 
@@ -385,7 +395,7 @@ ERROR
       topic("Installing dependencies using #{version}")
 
       load_bundler_cache
-      clean_bundler_cache
+      purge_development_gems
 
       bundler_output = ""
       Dir.mktmpdir("libyaml-") do |tmpdir|
@@ -578,11 +588,11 @@ params = CGI.parse(uri.query || "")
   end
 
   def run_assets_precompile_rake_task
-    if rake_task_defined?("assets:precompile")
+    if rake_task_defined?(asset_task)
       require 'benchmark'
 
-      topic "Running: rake assets:precompile"
-      time = Benchmark.realtime { pipe("env PATH=$PATH:bin bundle exec rake assets:precompile 2>&1") }
+      topic "Running: rake #{asset_task}"
+      time = Benchmark.realtime { pipe("env PATH=$PATH:bin bundle exec rake #{asset_task} 2>&1") }
       if $?.success?
         puts "Asset precompilation completed (#{"%.2f" % time}s)"
       end
@@ -628,8 +638,8 @@ params = CGI.parse(uri.query || "")
     cache_store heroku_metadata
   end
 
-  def clean_bundler_cache
-    topic("Purging any development gems.")
+  def purge_development_gems
+    topic("Purging development gems")
     Dir["#{slug_vendor_base}/gems/*.dev"].each do |devgem|
       puts "Removing #{devgem}..."
       FileUtils.rm_rf(devgem)
@@ -645,5 +655,52 @@ params = CGI.parse(uri.query || "")
     cache_clear bundler_cache
     # need to reinstall language pack gems
     install_language_pack_gems
+  end
+
+  def purge_assets_sources
+    topic("Purging asset sources")
+    FileUtils.rm_rf('vendor/assets')
+    FileUtils.rm_rf('app/assets')
+  end
+
+  def clean_asset_gems
+    log("bundle") do
+      bundle_without = ENV["BUNDLE_WITHOUT"] || "development:test:assets"
+      bundle_command = "bundle install --local --without #{bundle_without}"
+
+      version = run("env RUBYOPT=\"#{syck_hack}\" bundle version").strip
+      topic("Cleaning asset gems")
+
+      bundler_output = ""
+      # Dir.mktmpdir("libyaml-") do |tmpdir|
+      #   libyaml_dir = "#{tmpdir}/#{LIBYAML_PATH}"
+      #   install_libyaml(libyaml_dir)
+
+      #   # need to setup compile environment for the psych gem
+      #   yaml_include   = File.expand_path("#{libyaml_dir}/include")
+      #   yaml_lib       = File.expand_path("#{libyaml_dir}/lib")
+      #   pwd            = run("pwd").chomp
+      #   # we need to set BUNDLE_CONFIG and BUNDLE_GEMFILE for
+      #   # codon since it uses bundler.
+      #   env_vars       = "env BUNDLE_GEMFILE=#{pwd}/Gemfile BUNDLE_CONFIG=#{pwd}/.bundle/config CPATH=#{yaml_include}:$CPATH CPPATH=#{yaml_include}:$CPPATH LIBRARY_PATH=#{yaml_lib}:$LIBRARY_PATH RUBYOPT=\"#{syck_hack}\""
+      #   puts "Running: #{bundle_command}"
+      #   bundler_output << pipe("#{env_vars} #{bundle_command} --no-clean 2>&1")
+
+      # end
+
+      env_vars       = "env BUNDLE_GEMFILE=#{pwd}/Gemfile BUNDLE_CONFIG=#{pwd}/.bundle/config CPATH=#{yaml_include}:$CPATH CPPATH=#{yaml_include}:$CPPATH LIBRARY_PATH=#{yaml_lib}:$LIBRARY_PATH RUBYOPT=\"#{syck_hack}\""
+      puts "Running: #{bundle_command}"
+      bundler_output << pipe("#{env_vars} #{bundle_command} --no-clean 2>&1")
+
+      if $?.success?
+        log "bundle", :status => "success"
+        puts "Cleaning up the bundler cache."
+        pipe "env BUNDLE_CONFIG=/dev/null bundle clean --no-dry-run"
+
+        # Keep gem cache out of the slug
+        #FileUtils.rm_rf("#{slug_vendor_base}/cache")
+
+      end
+    end
   end
 end
