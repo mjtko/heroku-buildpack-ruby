@@ -385,6 +385,7 @@ ERROR
       topic("Installing dependencies using #{version}")
 
       load_bundler_cache
+      clean_bundler_cache
 
       bundler_output = ""
       Dir.mktmpdir("libyaml-") do |tmpdir|
@@ -625,6 +626,18 @@ params = CGI.parse(uri.query || "")
       file.puts BUILDPACK_VERSION
     end
     cache_store heroku_metadata
+  end
+
+  def clean_bundler_cache
+    topic("Purging any development gems.")
+    Dir["#{slug_vendor_base}/gems/*.dev"].each do |devgem|
+      puts "Removing #{devgem}..."
+      FileUtils.rm_rf(devgem)
+    end
+    Dir["#{slug_vendor_base}/specifications/*.dev.gemspec"].each do |devgemspec|
+      puts "Removing #{devgemspec}..."
+      FileUtils.rm_rf(devgemspec)
+    end
   end
 
   def purge_bundler_cache
