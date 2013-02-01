@@ -67,13 +67,21 @@ private
           end
         end
         cache_store "public/dist"
-        now_version = File.read('config/assets/version').chomp rescue '1'
-        FileUtils.mkdir_p('vendor/alces/assets')
-        File.open('vendor/alces/assets/version', 'w') do |file|
-          file.puts now_version
+        now_version = File.read('config/assets-version').chomp rescue '1'
+        if now_version != 'FORCE'
+          FileUtils.mkdir_p('vendor/alces/assets')
+          File.open('vendor/alces/assets/version', 'w') do |file|
+            file.puts now_version
+          end
         end
+        # store manifest
+        cache_store "config/assets"
+        # store assets
         cache_store "vendor/alces/assets"
       else
+        # retrieve manifest
+        cache_load "config/assets"
+        # retrieve assets
         cache_load "public/dist"
       end
     end
@@ -102,9 +110,9 @@ private
       return true
     else
       # check that no assets have changed since they were last compiled
-      now_version = File.read('config/assets/version').chomp rescue '1'
+      now_version = File.read('config/assets-version').chomp rescue '1'
       last_version = File.read('vendor/alces/assets/version').chomp rescue '0'
-      now_version != last_version
+      now_version == 'FORCE' || now_version != last_version
     end
   end
 end

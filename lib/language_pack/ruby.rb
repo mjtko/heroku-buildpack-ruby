@@ -1,6 +1,3 @@
-# TODO: 
-# - Cache asset compilation intelligently
-# - Fix client-side-validations gem
 require "tmpdir"
 require "rubygems"
 require "language_pack"
