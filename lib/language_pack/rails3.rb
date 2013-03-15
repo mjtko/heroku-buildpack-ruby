@@ -72,27 +72,6 @@ private
         last_version = File.read('vendor/alces/assets/version').chomp rescue '0'
         older_version = File.read('vendor/alces/assets/older_version').chomp rescue (last_version.to_i - 1).to_s
 
-        if !File.exist?("vendor/alces/assets/#{last_version}")
-          # CURRENT SITUATION - we can remove this section from the
-          # buildpack once we've tested that this stuff works! :-)
-          # 1. Move new assets into a version-specific directory
-          FileUtils.mv('public/dist',"vendor/alces/assets/#{now_version}")
-          # 2. Retrieve previously built assets
-          cache_load "public/dist"
-          # 3. Move previously built assets into a version-specific directory
-          FileUtils.mv('public/dist',"vendor/alces/assets/#{last_version}")
-          # 4. Move new assets back to 'public/dist'
-          FileUtils.mv("vendor/alces/assets/#{now_version}",'public/dist')
-          # We are now at the 'normal' situation, but with the previous assets cached for use on subsequent deploys
-          # store assets
-          cache_store "public/dist"
-          # store manifest
-          cache_store "config/assets"
-          # store asset version metadata
-          cache_store "vendor/alces/assets"
-          return
-        end
-
         if now_version != 'FORCE'
           FileUtils.mkdir_p('vendor/alces/assets')
           File.open('vendor/alces/assets/version', 'w') do |file|
@@ -109,11 +88,11 @@ private
         # Merge previous set of assets
         # 1. Move new assets into a version-specific directory
         FileUtils.mv('public/dist',"vendor/alces/assets/#{now_version}")
-        # Copy last assets into public/dist
+        # 2. Copy last assets into public/dist
         FileUtils.cp_r("vendor/alces/assets/#{last_version}", 'public/dist')
-        # Copy now assets into public/dist
+        # 3. Copy now assets into public/dist
         FileUtils.cp_r(Dir.glob("vendor/alces/assets/#{now_version}/*"), 'public/dist') 
-        # Remove older assets
+        # 4. Remove older assets
         FileUtils.rm_rf("vendor/alces/assets/#{older_version}")
         # store assets
         cache_store "public/dist"
@@ -121,14 +100,14 @@ private
         cache_store "config/assets"
         # store asset version metadata
         cache_store "vendor/alces/assets"
-        # Clean up build/cache artifacts
-        FileUtils.rm_rf('vendor/alces/assets')
       else
         # retrieve manifest
         cache_load "config/assets"
         # retrieve assets
         cache_load "public/dist"
       end
+      # Clean up build/cache artifacts
+      FileUtils.rm_rf('vendor/alces/assets')
     end
   end
 
