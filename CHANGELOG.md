@@ -1,3 +1,15 @@
+## v58 (3/19/2013)
+
+Bugfixes:
+
+* Fix ruby 1.8.7 not being able to compile native extensions
+
+## v57 (3/18/2013)
+
+Bugfixes:
+
+* Fix git gemspec bug in bundler
+
 ## v56 (3/11/2013)
 
 Bugfixes:

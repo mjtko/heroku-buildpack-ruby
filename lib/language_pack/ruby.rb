@@ -9,7 +9,7 @@ class LanguagePack::Ruby < LanguagePack::Base
   include LanguagePack::BundlerLockfile
   extend LanguagePack::BundlerLockfile
 
-  BUILDPACK_VERSION   = "v56"
+  BUILDPACK_VERSION   = "v58"
   LIBYAML_VERSION     = "0.1.4"
   LIBYAML_PATH        = "libyaml-#{LIBYAML_VERSION}"
   BUNDLER_VERSION     = "1.3.2"
@@ -393,7 +393,7 @@ ERROR
         cache_load ".bundle"
       end
 
-      version = run("env RUBYOPT=\"#{syck_hack}\" bundle version").strip
+      version = run("bundle version").strip
       topic("Installing dependencies using #{version}")
 
       load_bundler_cache
@@ -408,9 +408,11 @@ ERROR
         yaml_include   = File.expand_path("#{libyaml_dir}/include")
         yaml_lib       = File.expand_path("#{libyaml_dir}/lib")
         pwd            = run("pwd").chomp
+        bundler_path   = "#{pwd}/#{slug_vendor_base}/gems/#{BUNDLER_GEM_PATH}/lib"
         # we need to set BUNDLE_CONFIG and BUNDLE_GEMFILE for
         # codon since it uses bundler.
         env_vars       = "env BUNDLE_GEMFILE=#{pwd}/Gemfile BUNDLE_CONFIG=#{pwd}/.bundle/config CPATH=#{yaml_include}:$CPATH CPPATH=#{yaml_include}:$CPPATH LIBRARY_PATH=#{yaml_lib}:$LIBRARY_PATH RUBYOPT=\"#{syck_hack}\""
+        env_vars      += " BUNDLER_LIB_PATH=#{bundler_path}" if ruby_version == "ruby-1.8.7"
         puts "Running: #{bundle_command}"
         bundler_output << pipe("#{env_vars} #{bundle_command} --no-clean 2>&1")
 
@@ -610,7 +612,8 @@ params = CGI.parse(uri.query || "")
     full_ruby_version       = run(%q(ruby -v)).chomp
     heroku_metadata         = "vendor/heroku"
     ruby_version_cache      = "#{heroku_metadata}/ruby_version"
-    buildpack_version_cache = "vendor/heroku/buildpack_version"
+    buildpack_version_cache = "#{heroku_metadata}/buildpack_version"
+    bundler_version_cache   = "#{heroku_metadata}/bundler_version"
 
     # fix bug from v37 deploy
     if File.exists?("vendor/ruby_version")
@@ -629,12 +632,21 @@ params = CGI.parse(uri.query || "")
       purge_bundler_cache
     end
 
+    # fix git gemspec bug from Bundler 1.3.0+ upgrade
+    if File.exists?(bundler_cache) && !File.exists?(bundler_version_cache) && !run("find vendor/bundle/*/*/bundler/gems/*/ -name *.gemspec").include?("No such file or directory")
+      puts "Old bundler cache detected. Clearing bundler cache."
+      purge_bundler_cache
+    end
+
     FileUtils.mkdir_p(heroku_metadata)
     File.open(ruby_version_cache, 'w') do |file|
       file.puts full_ruby_version
     end
     File.open(buildpack_version_cache, 'w') do |file|
       file.puts BUILDPACK_VERSION
+    end
+    File.open(bundler_version_cache, 'w') do |file|
+      file.puts BUNDLER_VERSION
     end
     cache_store heroku_metadata
   end
