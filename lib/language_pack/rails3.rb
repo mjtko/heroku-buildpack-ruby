@@ -72,7 +72,11 @@ private
         last_version = File.read('vendor/alces/assets/version').chomp rescue '0'
         older_version = File.read('vendor/alces/assets/older_version').chomp rescue (last_version.to_i - 1).to_s
 
-        if now_version != 'FORCE'
+        if now_version == 'FORCE' || ":#{ENV['ALCES_SLUG_FLAGS']}:" =~ /:force_assets:/
+          now_version = last_version
+          last_version = older_version
+          FileUtils.rm_rf("vendor/alces/assets/#{now_version}")
+        else
           FileUtils.mkdir_p('vendor/alces/assets')
           File.open('vendor/alces/assets/version', 'w') do |file|
             file.puts now_version
@@ -80,10 +84,6 @@ private
           File.open('vendor/alces/assets/older_version', 'w') do |file|
             file.puts last_version
           end
-        else
-          now_version = last_version
-          last_version = older_version
-          FileUtils.rm_rf("vendor/alces/assets/#{now_version}")
         end
         # Merge previous set of assets
         # 1. Move new assets into a version-specific directory
@@ -136,7 +136,7 @@ private
       # check that no assets have changed since they were last compiled
       now_version = File.read('config/assets-version').chomp rescue '1'
       last_version = File.read('vendor/alces/assets/version').chomp rescue '0'
-      now_version == 'FORCE' || now_version != last_version
+      now_version == 'FORCE' || ":#{ENV['ALCES_SLUG_FLAGS']}:" =~ /:force_assets:/ || now_version != last_version
     end
   end
 end

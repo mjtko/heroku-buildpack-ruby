@@ -630,6 +630,9 @@ params = CGI.parse(uri.query || "")
       puts "Old: #{File.read(ruby_version_cache).chomp}"
       puts "New: #{full_ruby_version}"
       purge_bundler_cache
+    elsif ":#{ENV['ALCES_SLUG_FLAGS']}:" =~ /:purge_bundler_cache:/
+      puts "Purge bundler cache flag detected. Clearing bundler cache."
+      purge_bundler_cache
     end
 
     # fix git gemspec bug from Bundler 1.3.0+ upgrade
