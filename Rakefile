@@ -1,5 +1,6 @@
 require "fileutils"
 require "tmpdir"
+require 'hatchet/tasks'
 
 S3_BUCKET_NAME  = "heroku-buildpack-ruby"
 VENDOR_URL      = "https://s3.amazonaws.com/#{S3_BUCKET_NAME}"
@@ -343,4 +344,16 @@ task "libffi:install", :version do |t, args|
       s3_upload(tmpdir, name)
     end
   end
+end
+
+begin
+  require 'rspec/core/rake_task'
+
+  desc "Run specs"
+  RSpec::Core::RakeTask.new(:spec) do |t|
+    t.rspec_opts = %w(-fs --color)
+    #t.ruby_opts  = %w(-w)
+  end
+  task :default => :spec
+rescue LoadError => e
 end
