@@ -90,7 +90,11 @@ private
         FileUtils.mv('public/dist',"vendor/alces/assets/#{now_version}")
         # 2. Copy last assets into public/dist
         last_assets_dir = "vendor/alces/assets/#{last_version}"
-        FileUtils.cp_r(last_assets_dir, 'public/dist') if File.directory?(last_assets_dir)
+        if File.directory?(last_assets_dir)
+          FileUtils.cp_r(last_assets_dir, 'public/dist')
+        else
+          FileUtils.mkdir_p('public/dist')
+        end
         # 3. Copy now assets into public/dist
         FileUtils.cp_r(Dir.glob("vendor/alces/assets/#{now_version}/*"), 'public/dist') 
         # 4. Remove older assets
