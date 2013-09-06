@@ -58,5 +58,15 @@ module LanguagePack
       end
       $stdout.flush
     end
+
+    def warn(message)
+      @warnings ||= []
+      @warnings << message
+    end
+
+    def deprecate(message)
+      @deprecations ||= []
+      @deprecations << message
+    end
   end
 end

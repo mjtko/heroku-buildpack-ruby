@@ -6,9 +6,11 @@ class LanguagePack::Rails3 < LanguagePack::Rails2
   # detects if this is a Rails 3.x app
   # @return [Boolean] true if it's a Rails 3.x app
   def self.use?
-    if gemfile_lock?
-      rails_version = LanguagePack::Ruby.gem_version('railties')
-      rails_version >= Gem::Version.new('3.0.0') && rails_version < Gem::Version.new('4.0.0') if rails_version
+    instrument "rails3.use" do
+      if gemfile_lock?
+        rails_version = LanguagePack::Ruby.gem_version('railties')
+        rails_version >= Gem::Version.new('3.0.0') && rails_version < Gem::Version.new('4.0.0') if rails_version
+      end
     end
   end
 
@@ -17,131 +19,96 @@ class LanguagePack::Rails3 < LanguagePack::Rails2
   end
 
   def default_process_types
-    # let's special case thin here
-    web_process = gem_is_bundled?("thin") ?
-                    "bundle exec thin start -R config.ru -e $RAILS_ENV -p $PORT" :
-                    "bundle exec rails server -p $PORT"
+    instrument "rails3.default_process_types" do
+      # let's special case thin here
+      web_process = gem_is_bundled?("thin") ?
+        "bundle exec thin start -R config.ru -e $RAILS_ENV -p $PORT" :
+        "bundle exec rails server -p $PORT"
 
-    super.merge({
-      "web" => web_process,
-      "console" => "bundle exec rails console"
-    })
+      super.merge({
+        "web" => web_process,
+        "console" => "bundle exec rails console"
+      })
+    end
+  end
+
+  def compile
+    instrument "rails3.compile" do
+      super
+    end
   end
 
 private
 
-  # mjt - Disabled this plugin; not needed as we have a correctly
-  # configured environments/production.rb that already does this.
-  # def plugins
-  #   super.concat(%w( rails3_serve_static_assets )).uniq
-  # end
+  def install_plugins
+    instrument "rails3.install_plugins" do
+      return false if gem_is_bundled?('rails_12factor')
+      plugins = {"rails_log_stdout" => "rails_stdout_logging", "rails3_serve_static_assets" => "rails_serve_static_assets" }.
+                 reject { |plugin, gem| gem_is_bundled?(gem) }
+      return false if plugins.empty?
+      plugins.each do |plugin, gem|
+        warn "Injecting plugin '#{plugin}'"
+      end
+      warn "Add 'rails_12factor' gem to your Gemfile to skip plugin injection"
+      LanguagePack::Helpers::PluginsInstaller.new(plugins.keys).install
+    end
+  end
 
   # runs the tasks for the Rails 3.1 asset pipeline
   def run_assets_precompile_rake_task
-    log("assets_precompile") do
-      setup_database_url_env
+    instrument "rails3.run_assets_precompile_rake_task" do
+      log("assets_precompile") do
+        setup_database_url_env
 
-      # retrieve asset version metadata
-      cache_load "vendor/alces/assets"
-      if assets_need_recompile?
-        if rake_task_defined?(ASSET_PRECOMPILE_TASK)
+        if rake_task_defined?("assets:precompile")
           topic("Preparing app for Rails asset pipeline")
           if File.exists?("public/assets/manifest.yml")
             puts "Detected manifest.yml, assuming assets were compiled locally"
           else
             ENV["RAILS_GROUPS"] ||= "assets"
             ENV["RAILS_ENV"]    ||= "production"
-            
-            puts "Running: rake #{ASSET_PRECOMPILE_TASK}"
+
+            puts "Running: rake assets:precompile"
             require 'benchmark'
-            time = Benchmark.realtime { pipe("env PATH=$PATH:bin bundle exec rake #{ASSET_PRECOMPILE_TASK} 2>&1") }
-            
+            time = Benchmark.realtime { pipe("env PATH=$PATH:bin bundle exec rake assets:precompile 2>&1") }
+
             if $?.success?
               log "assets_precompile", :status => "success"
               puts "Asset precompilation completed (#{"%.2f" % time}s)"
             else
               log "assets_precompile", :status => "failure"
+              deprecate <<-DEPRECATION
+                Runtime asset compilation is being removed on Sep. 18, 2013.
+                Builds will soon fail if assets fail to compile.
+              DEPRECATION
               puts "Precompiling assets failed, enabling runtime asset compilation"
-              install_plugin("rails31_enable_runtime_asset_compilation")
+              LanguagePack::Helpers::PluginsInstaller.new(["rails31_enable_runtime_asset_compilation"]).install
               puts "Please see this article for troubleshooting help:"
               puts "http://devcenter.heroku.com/articles/rails31_heroku_cedar#troubleshooting"
             end
           end
         end
-        now_version = File.read('config/assets-version').chomp rescue '1'
-        last_version = File.read('vendor/alces/assets/version').chomp rescue '0'
-        older_version = File.read('vendor/alces/assets/older_version').chomp rescue (last_version.to_i - 1).to_s
-
-        if now_version == 'FORCE' || ":#{ENV['ALCES_SLUG_FLAGS']}:" =~ /:force_assets:/
-          now_version = last_version
-          last_version = older_version
-          FileUtils.rm_rf("vendor/alces/assets/#{now_version}")
-        else
-          FileUtils.mkdir_p('vendor/alces/assets')
-          File.open('vendor/alces/assets/version', 'w') do |file|
-            file.puts now_version
-          end
-          File.open('vendor/alces/assets/older_version', 'w') do |file|
-            file.puts last_version
-          end
-        end
-        # Merge previous set of assets
-        # 1. Move new assets into a version-specific directory
-        FileUtils.mv('public/dist',"vendor/alces/assets/#{now_version}")
-        # 2. Copy last assets into public/dist
-        last_assets_dir = "vendor/alces/assets/#{last_version}"
-        if File.directory?(last_assets_dir)
-          FileUtils.cp_r(last_assets_dir, 'public/dist')
-        else
-          FileUtils.mkdir_p('public/dist')
-        end
-        # 3. Copy now assets into public/dist
-        FileUtils.cp_r(Dir.glob("vendor/alces/assets/#{now_version}/*"), 'public/dist') 
-        # 4. Remove older assets
-        FileUtils.rm_rf("vendor/alces/assets/#{older_version}")
-        # store assets
-        cache_store "public/dist"
-        # store manifest
-        cache_store "config/assets"
-        # store asset version metadata
-        cache_store "vendor/alces/assets"
-      else
-        # retrieve manifest
-        cache_load "config/assets"
-        # retrieve assets
-        cache_load "public/dist"
       end
-      # Clean up build/cache artifacts
-      FileUtils.rm_rf('vendor/alces/assets')
     end
   end
 
   # setup the database url as an environment variable
   def setup_database_url_env
-    ENV["DATABASE_URL"] ||= begin
-      # need to use a dummy DATABASE_URL here, so rails can load the environment
-      scheme =
-        if gem_is_bundled?("pg")
-          "postgres"
-        elsif gem_is_bundled?("mysql")
-          "mysql"
-        elsif gem_is_bundled?("mysql2")
-          "mysql2"
-        elsif gem_is_bundled?("sqlite3") || gem_is_bundled?("sqlite3-ruby")
-          "sqlite3"
-        end
-      "#{scheme}://user:pass@127.0.0.1/dbname"
-    end
-  end
-
-  def assets_need_recompile?
-    if !cache_exists?("public/dist") || !cache_exists?("vendor/alces/assets")
-      return true
-    else
-      # check that no assets have changed since they were last compiled
-      now_version = File.read('config/assets-version').chomp rescue '1'
-      last_version = File.read('vendor/alces/assets/version').chomp rescue '0'
-      now_version == 'FORCE' || ":#{ENV['ALCES_SLUG_FLAGS']}:" =~ /:force_assets:/ || now_version != last_version
+    instrument "rails3.setup_database_url_env" do
+      ENV["DATABASE_URL"] ||= begin
+        # need to use a dummy DATABASE_URL here, so rails can load the environment
+        scheme =
+          if gem_is_bundled?("pg") || gem_is_bundled?("jdbc-postgres")
+            "postgres"
+          elsif gem_is_bundled?("mysql")
+            "mysql"
+          elsif gem_is_bundled?("mysql2")
+            "mysql2"
+          elsif gem_is_bundled?("sqlite3") || gem_is_bundled?("sqlite3-ruby")
+            "sqlite3"
+          end
+        "#{scheme}://user:pass@127.0.0.1/dbname"
+      end
     end
   end
 end
