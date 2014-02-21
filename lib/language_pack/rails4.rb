@@ -3,14 +3,17 @@ require "language_pack/rails3"
 
 # Rails 4 Language Pack. This is for all Rails 4.x apps.
 class LanguagePack::Rails4 < LanguagePack::Rails3
-  # detects if this is a Rails 3.x app
-  # @return [Boolean] true if it's a Rails 3.x app
+  ASSETS_CACHE_LIMIT = 52428800 # bytes
+
+  # detects if this is a Rails 4.x app
+  # @return [Boolean] true if it's a Rails 4.x app
   def self.use?
     instrument "rails4.use" do
-      if gemfile_lock?
-        rails_version = LanguagePack::Ruby.gem_version('railties')
-        rails_version >= Gem::Version.new('4.0.0.beta') && rails_version < Gem::Version.new('5.0.0') if rails_version
-      end
+      rails_version = bundler.gem_version('railties')
+      return false unless rails_version
+      is_rails4 = rails_version >= Gem::Version.new('4.0.0.beta') &&
+                  rails_version <  Gem::Version.new('4.1.0.beta1')
+      return is_rails4
     end
   end
 
@@ -43,8 +46,8 @@ class LanguagePack::Rails4 < LanguagePack::Rails3
 
   def install_plugins
     instrument "rails4.install_plugins" do
-      return false if gem_is_bundled?('rails_12factor')
-      plugins = ["rails_serve_static_assets", "rails_stdout_logging"].reject { |plugin| gem_is_bundled?(plugin) }
+      return false if bundler.has_gem?('rails_12factor')
+      plugins = ["rails_serve_static_assets", "rails_stdout_logging"].reject { |plugin| bundler.has_gem?(plugin) }
       return false if plugins.empty?
 
     warn <<-WARNING
@@ -58,6 +61,10 @@ WARNING
   # mjt - this is different in our case; public/dist/assets not public/assets
   def public_assets_folder
     "public/dist/assets"
+  end
+
+  def default_assets_cache
+    "tmp/cache/assets"
   end
 
   def run_assets_precompile_rake_task
@@ -75,18 +82,16 @@ WARNING
 
             @cache.load public_assets_folder
 
-            puts "Running: rake #{ASSET_PRECOMPILE_TASK}"
-            require 'benchmark'
-            # mjt - the latest version of this line (below) redirects stdout to /dev/null; not sure about that...
-            # time = Benchmark.realtime { pipe("env PATH=$PATH:bin bundle exec rake assets:precompile 2>&1 > /dev/null") }
-            time = Benchmark.realtime { pipe("env PATH=$PATH:bin bundle exec rake #{ASSET_PRECOMPILE_TASK} 2>&1") }
+            precompile = rake.task(ASSET_PRECOMPILE_TASK)
+            return true unless precompile.is_defined?
+            precompile.invoke(env: rake_env)
 
-            if $?.success?
+            if precompile.success?
               log "assets_precompile", :status => "success"
-              puts "Asset precompilation completed (#{"%.2f" % time}s)"
+              puts "Asset precompilation completed (#{"%.2f" % precompile.time}s)"
 
               puts "Cleaning assets"
-              pipe "env PATH=$PATH:bin bundle exec rake assets:clean 2>& 1"
+              rake.task("assets:clean").invoke(env: rake_env)
 
               @cache.store public_assets_folder
             else
@@ -98,6 +103,12 @@ WARNING
           puts "Error detecting the #{ASSET_PRECOMPILE_TASK} task"
         end
       end
+    end
+  end
+
+  def cleanup_assets_cache
+    instrument "rails4.cleanup_assets_cache" do
+      LanguagePack::Helpers::StaleFileCleaner.new(default_assets_cache).clean_over(ASSETS_CACHE_LIMIT)
     end
   end
 end
