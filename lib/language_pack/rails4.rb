@@ -70,37 +70,29 @@ WARNING
   def run_assets_precompile_rake_task
     instrument "rails4.run_assets_precompile_rake_task" do
       log("assets_precompile") do
-        setup_database_url_env
-
-        if rake_task_defined?(ASSET_PRECOMPILE_TASK)
-          topic("Preparing app for Rails asset pipeline")
-          if Dir.glob("#{public_assets_folder}/manifest-*.json").any?
-            puts "Detected manifest file, assuming assets were compiled locally"
-          else
-            ENV["RAILS_GROUPS"] ||= "assets"
-            ENV["RAILS_ENV"]    ||= "production"
-
-            @cache.load public_assets_folder
-
-            precompile = rake.task(ASSET_PRECOMPILE_TASK)
-            return true unless precompile.is_defined?
-            precompile.invoke(env: rake_env)
-
-            if precompile.success?
-              log "assets_precompile", :status => "success"
-              puts "Asset precompilation completed (#{"%.2f" % precompile.time}s)"
-
-              puts "Cleaning assets"
-              rake.task("assets:clean").invoke(env: rake_env)
-
-              @cache.store public_assets_folder
-            else
-              log "assets_precompile", :status => "failure"
-              error "Precompiling assets failed."
-            end
-          end
+        topic("Preparing app for Rails asset pipeline")
+        if Dir.glob("#{public_assets_folder}/manifest-*.json").any?
+          puts "Detected manifest file, assuming assets were compiled locally"
+          return true
         else
-          puts "Error detecting the #{ASSET_PRECOMPILE_TASK} task"
+          @cache.load public_assets_folder
+
+          precompile = rake.task(ASSET_PRECOMPILE_TASK)
+          return true unless precompile.is_defined?
+          precompile.invoke(env: rake_env)
+
+          if precompile.success?
+            log "assets_precompile", :status => "success"
+            puts "Asset precompilation completed (#{"%.2f" % precompile.time}s)"
+
+            puts "Cleaning assets"
+            rake.task("assets:clean").invoke(env: rake_env)
+
+            @cache.store public_assets_folder
+          else
+            log "assets_precompile", :status => "failure"
+            error "Precompiling assets failed."
+          end
         end
       end
     end
