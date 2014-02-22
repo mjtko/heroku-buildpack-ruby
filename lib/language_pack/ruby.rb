@@ -94,6 +94,7 @@ class LanguagePack::Ruby < LanguagePack::Base
         create_database_yml
         install_binaries
         run_assets_precompile_rake_task
+        run_custom_rake_tasks
         purge_asset_artifacts
         clean_asset_gems
       end
@@ -806,6 +807,20 @@ params = CGI.parse(uri.query || "")
       cache.clear bundler_cache
       # need to reinstall language pack gems
       install_bundler_in_app
+    end
+  end
+
+  def run_custom_rake_tasks
+    generate_licenselib = rake.task('alces:licenselib:generate')
+    return true unless generate_licenselib.is_defined?
+    generate_licenselib.invoke(env: rake_env)
+
+    if generate_licenselib.success?
+      log "generate_licenselib", :status => "success"
+      puts "License library generation completed (#{"%.2f" % generate_licenselib.time}s)"
+    else
+      log "generate_licenselib", :status => "failure"
+      error "License library gneeration failed."
     end
   end
 
