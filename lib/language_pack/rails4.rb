@@ -88,10 +88,11 @@ WARNING
             puts "Cleaning assets"
             rake.task("assets:clean").invoke(env: rake_env)
 
+            cleanup_assets_cache
             @cache.store public_assets_folder
+            @cache.store default_assets_cache
           else
-            log "assets_precompile", :status => "failure"
-            error "Precompiling assets failed."
+            precompile_fail(precompile.output)
           end
         end
       end
