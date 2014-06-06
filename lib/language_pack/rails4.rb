@@ -74,6 +74,9 @@ WARNING
           puts "Detected manifest file, assuming assets were compiled locally"
           return true
         else
+          if @cache.exists? 'public/dist/assets'
+            @cache.load 'public/dist/assets'
+          end
           @cache.load public_assets_folder
 
           precompile = rake.task(ASSET_PRECOMPILE_TASK)
