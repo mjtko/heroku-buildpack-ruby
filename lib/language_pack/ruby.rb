@@ -97,6 +97,7 @@ class LanguagePack::Ruby < LanguagePack::Base
         run_assets_precompile_rake_task
         run_custom_rake_tasks
         purge_asset_artifacts
+        purge_other_artifacts
         clean_asset_gems
       end
       super
@@ -849,8 +850,20 @@ params = CGI.parse(uri.query || "")
     topic("Purging asset artifacts")
     FileUtils.rm_rf('vendor/assets')
     FileUtils.rm_rf('app/assets')
+  end
+
+  def purge_other_artifacts
+    topic("Purging other artifacts")
     FileUtils.rm_rf Dir.glob('tmp/*')
     FileUtils.rm_r Dir.glob('log/*.log')
+    # This can be removed in the future as it should only need to be executed once.
+    if cache.exists? 'vendor/alces'
+      FileUtils.rm_rf('vendor/alces/assets')
+      cache.clear 'vendor/alces'
+    end
+    FileUtils.rm_rf('public/assets')
+    # This can be enabled after at least one deployment to production.
+    # FileUtils.rm_rf('public/dist/assets')
   end
 
   def clean_asset_gems
