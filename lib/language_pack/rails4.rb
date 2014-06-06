@@ -58,9 +58,8 @@ WARNING
     end
   end
 
-  # mjt - this is different in our case; public/dist/assets not public/assets
   def public_assets_folder
-    "public/dist/assets"
+    "public/assets"
   end
 
   def default_assets_cache
