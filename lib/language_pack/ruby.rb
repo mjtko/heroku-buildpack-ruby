@@ -860,8 +860,10 @@ params = CGI.parse(uri.query || "")
     topic("Purging other artifacts")
     FileUtils.rm_rf Dir.glob('tmp/*')
     FileUtils.rm_r Dir.glob('log/*.log')
-    # This can be enabled after at least one deployment to production.
-    # FileUtils.rm_rf('public/dist/assets')
+    # This can be removed after a successful deployment.
+    if cache.exists? 'public/dist'
+      cache.clear 'public/dist'
+    end
   end
 
   def clean_asset_gems
