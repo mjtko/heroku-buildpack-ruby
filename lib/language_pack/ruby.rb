@@ -24,6 +24,13 @@ class LanguagePack::Ruby < LanguagePack::Base
   ASSET_PRECOMPILE_TASK = "alces:predeploy" # "assets:precompile"
   NODE_BP_PATH         = "vendor/node/bin"
 
+  REMOTE_GEMS          = {
+    'libv8' => {
+      host: 'http://rubygems.org/downloads',
+      pattern: 'libv8-%s-x86_64-linux.gem'
+    }
+  }
+
   # detects if this is a valid Ruby app
   # @return [Boolean] true if it's a Ruby app
   def self.use?
@@ -481,7 +488,7 @@ WARNING
         bundle_without = env("BUNDLE_WITHOUT") || "development:test"
         bundle_bin     = "bundle"
         bundle_command = "#{bundle_bin} install --local --without #{bundle_without} --path vendor/bundle --binstubs #{bundler_binstubs_path}"
-        bundle_command << " -j4"
+        bundle_command << " -j8"
 
         if bundler.windows_gemfile_lock?
           warn(<<WARNING, inline: true)
@@ -502,6 +509,7 @@ WARNING
 
         topic("Installing dependencies using #{bundler.version}")
         load_bundler_cache
+        fetch_remote_gems
         purge_development_gems
 
         bundler_output = ""
@@ -808,6 +816,23 @@ params = CGI.parse(uri.query || "")
       @metadata.write(bundler_version_cache, BUNDLER_VERSION, false)
       @metadata.write(rubygems_version_cache, rubygems_version, false)
       @metadata.save
+    end
+  end
+
+  def fetch_remote_gems
+    topic("Fetching remote gems")
+    REMOTE_GEMS.each do |name, config|
+      local = Dir.glob("vendor/cache/#{name}-*.gem").last
+      version = local.match("/#{name}-(.*)\.gem")[1]
+      if version =~ /x86_64/
+        puts "Skipping previously fetched remote gem: #{local}"
+      else
+        fetcher = LanguagePack::Fetcher.new(config[:host])
+        file = sprintf(config[:pattern],version)
+        fetcher.fetch_following_redirects(file)
+        FileUtils.mv(file, File.join('vendor','cache',file))
+        FileUtils.rm_rf(local)
+      end
     end
   end
 

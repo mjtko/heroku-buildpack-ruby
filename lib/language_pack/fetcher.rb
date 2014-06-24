@@ -16,6 +16,11 @@ module LanguagePack
       run!(curl)
     end
 
+    def fetch_following_redirects(path)
+      curl = curl_command("-L -O #{@host_url.join(path)}")
+      run!(curl)
+    end
+
     def fetch_untar(path)
       curl = curl_command("#{@host_url.join(path)} -s -o")
       run!("#{curl} - | tar zxf -")
