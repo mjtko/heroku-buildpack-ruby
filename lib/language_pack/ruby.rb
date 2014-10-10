@@ -845,7 +845,6 @@ params = CGI.parse(uri.query || "")
     end
   end
 
-<<<<<<< HEAD
   def fetch_remote_gems
     topic("Fetching remote gems")
     REMOTE_GEMS.each do |name, config|
