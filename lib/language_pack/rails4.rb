@@ -70,7 +70,7 @@ WARNING
     instrument "rails4.run_assets_precompile_rake_task" do
       log("assets_precompile") do
         topic("Preparing app for Rails asset pipeline")
-        if Dir.glob("#{public_assets_folder}/manifest-*.json").any?
+        if Dir.glob("public/assets/{.sprockets-manifest-*.json,manifest-*.json}", File::FNM_DOTMATCH).any?
           puts "Detected manifest file, assuming assets were compiled locally"
           return true
         else
